@@ -1,3 +1,5 @@
+__Author__ = "Ben Kelly"
+
 from sys import argv
 import paramiko
 import re

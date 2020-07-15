@@ -1,4 +1,4 @@
-__Author__ = "Ben Kelly"
+__author__ = "Ben Kelly"
 
 from sys import argv
 import paramiko
@@ -21,17 +21,20 @@ def open_ssh(device,user,password):
     remote_connection.send("ch context system\n")
     time.sleep(1)
     remote_connection.send("write memory all\n \n")
+    time.sleep(5)
+    remote_connection.send("terminal pager 0\n")
     time.sleep(1)
 
     return remote_connection
 
 def get_contexts(connection):
     #Regular Expression to filter output to only show CFG files
-    expression = re.compile('\\w*.cfg')
+    #expression = re.compile('\\S*.cfg')
+    expression = re.compile(r'(?<=/)\S*.cfg')
     #Sends the show Context command and receives the output back
     connection.send("show context\n")
-    time.sleep(2)
-    output = connection.recv(9999).decode(encoding='utf-8')
+    time.sleep(5)
+    output = connection.recv(99999).decode(encoding='utf-8')
     #Filters the output and puts the CFG names into a list
     ctx_list = expression.findall(output)
 
@@ -44,10 +47,8 @@ def backup_context(connection,ctx):
     connection.send("config t\n")
     #time comamnds pause for x seconds to ensure command has time to run before next one is sent
     time.sleep(1)
-    connection.send("terminal pager 0\n")
-    time.sleep(1)
     #sens more command so output includes passwords
-    string = "more {}\n".format(ctx)
+    string = "more disk0:{}\n".format(ctx)
     connection.send(string)
     time.sleep(3)
     #receive the output of the more command back and put in variable
@@ -55,6 +56,13 @@ def backup_context(connection,ctx):
     #Dump config out to a file
     with open(ctx,'w') as out_file:
         out_file.write(output)
+
+def obtain_hostname (connection):
+    connection.send("\n\nshow run hostname\n")
+    time.sleep(1)
+    host_output = connection.recv(999).decode(encoding='utf-8')
+    host_regex = re.findall(r'(?<=hostname\s)\S+',host_output)
+    return host_regex[0]
 
 #Get user and firewall details
 print('\n')
@@ -69,7 +77,6 @@ firewall = open_ssh (firewall,user,password)
 contexts = get_contexts(firewall)
 
 #create the folder structure
-
 #Check if the Backups folder exists and create if not
 if not os.path.exists('Backups'):
     os.mkdir('Backups')
@@ -91,6 +98,15 @@ if not os.path.exists(folder_name):
     os.mkdir(folder_name)
 #change in to Folder
 os.chdir(folder_name)
+
+#create a folder for the hostname of the device
+#obtain the hostname
+hostname = obtain_hostname (firewall)
+#create folder
+if not os.path.exists(hostname):
+    os.mkdir(hostname)
+#Change into folder 
+os.chdir(hostname)
 
 #Loop through context and back them up
 for ctx in contexts:
